@@ -3,6 +3,9 @@
 HTML, CSS ve JavaScript ile yazılmış, **Supabase** veritabanına bağlı basit bir todo uygulaması. Görevler buluttaki Postgres veritabanında saklanır; farklı cihaz/tarayıcıdan açıldığında aynı liste görünür.
 
 ## Özellikler
+- **E-posta + şifre ile kayıt ve giriş** (Supabase Auth)
+- **6 haneli OTP ile e-posta doğrulama** — kayıt sonrası gelen kodu girerek hesap onaylanır
+- Her kullanıcı yalnızca **kendi görevlerini** görür (RLS ile `user_id` bazlı izolasyon)
 - Görev ekleme, tamamlama (üstü çizili), silme
 - Filtreler: Tümü / Aktif / Tamamlanan
 - Tamamlananları toplu temizleme
@@ -19,5 +22,8 @@ HTML, CSS ve JavaScript ile yazılmış, **Supabase** veritabanına bağlı basi
 3. `index.html` içindeki `SUPABASE_URL` ve `SUPABASE_ANON_KEY` değerlerini kendi projenin değerleriyle güncelle.
 4. `index.html`'i tarayıcıda aç.
 
+## OTP e-postası (önemli)
+6 haneli kodun e-postaya gömülebilmesi için "Confirm signup" şablonu `{{ .Token }}` içermelidir. Supabase **ücretsiz planda varsayılan e-posta sağlayıcısıyla şablon değiştirilemez**; bu yüzden özel bir **SMTP sağlayıcısı** (ör. Brevo, Resend, Gmail SMTP) yapılandırılmalıdır. SMTP olmadan Supabase yalnızca doğrulama linki gönderir, 6 haneli kod göstermez.
+
 ## ⚠️ Güvenlik notu
-Bu demo kimlik doğrulaması (auth) **içermez**. RLS açık olsa da politikalar `anon` rolüne tam erişim verir — yani anon anahtarını bilen herkes görevleri okuyup yazabilir. Kişisel/demo kullanım içindir. Gerçek bir uygulamada Supabase Auth ekleyip görevleri kullanıcıya göre kısıtlayın.
+Görevler RLS ile kullanıcı bazında izole edilmiştir (her kullanıcı yalnızca kendi görevlerini görür). `anon` ve `service_role` anahtarlarını gizli tutun; `service_role` anahtarı asla istemci tarafında kullanılmamalıdır.

@@ -1,6 +1,7 @@
--- Yapılacaklar tablosu
+-- Yapılacaklar tablosu (kullanıcı bazlı)
 create table if not exists public.todos (
   id          bigint generated always as identity primary key,
+  user_id     uuid not null default auth.uid() references auth.users(id) on delete cascade,
   text        text not null check (char_length(text) > 0),
   done        boolean not null default false,
   inserted_at timestamptz not null default now()
@@ -9,25 +10,30 @@ create table if not exists public.todos (
 -- Row Level Security açık
 alter table public.todos enable row level security;
 
--- NOT: Bu demo kimlik doğrulaması (auth) içermez. Aşağıdaki politikalar
--- anon (public anahtar) rolüne tam erişim verir; yani anon key'i bilen herkes
--- bu tabloyu okuyup yazabilir. Basit/kişisel bir demo için uygundur.
--- Gerçek bir uygulamada Supabase Auth ekleyip politikaları user_id'ye göre
--- kısıtlamalısın.
+-- Politikalar: her kullanıcı yalnızca kendi görevlerine erişebilir.
+-- user_id, INSERT sırasında auth.uid() varsayılanıyla otomatik dolar.
+drop policy if exists "own select" on public.todos;
+drop policy if exists "own insert" on public.todos;
+drop policy if exists "own update" on public.todos;
+drop policy if exists "own delete" on public.todos;
 
-drop policy if exists "anon select" on public.todos;
-drop policy if exists "anon insert" on public.todos;
-drop policy if exists "anon update" on public.todos;
-drop policy if exists "anon delete" on public.todos;
+create policy "own select" on public.todos
+  for select to authenticated using (auth.uid() = user_id);
 
-create policy "anon select" on public.todos
-  for select to anon using (true);
+create policy "own insert" on public.todos
+  for insert to authenticated with check (auth.uid() = user_id);
 
-create policy "anon insert" on public.todos
-  for insert to anon with check (true);
+create policy "own update" on public.todos
+  for update to authenticated using (auth.uid() = user_id) with check (auth.uid() = user_id);
 
-create policy "anon update" on public.todos
-  for update to anon using (true) with check (true);
+create policy "own delete" on public.todos
+  for delete to authenticated using (auth.uid() = user_id);
 
-create policy "anon delete" on public.todos
-  for delete to anon using (true);
+-- ============================================================
+-- Auth / OTP notları (kod ile değil, Supabase ayarlarından yapılır):
+--   * Email confirmations AÇIK olmalı (Authentication > Providers > Email).
+--   * 6 haneli kod için "Confirm signup" e-posta şablonu {{ .Token }} içermeli.
+--     DİKKAT: Ücretsiz planda varsayılan e-posta sağlayıcısıyla şablon
+--     değiştirilemez; özel SMTP (ör. Brevo, Resend, Gmail) gerekir.
+--   * OTP uzunluğu: Authentication > Email > "OTP length" = 6.
+-- ============================================================
