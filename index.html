@@ -26,11 +26,7 @@
       overflow: hidden;
     }
 
-    header {
-      padding: 28px 24px 20px;
-      border-bottom: 1px solid #eee;
-    }
-
+    header { padding: 28px 24px 20px; border-bottom: 1px solid #eee; }
     header h1 { font-size: 1.5rem; color: #333; }
     header p { margin-top: 4px; font-size: 0.85rem; color: #888; }
 
@@ -41,7 +37,7 @@
       gap: 12px;
     }
 
-    /* ---- Auth / OTP ---- */
+    /* ---- Auth ---- */
     .auth-tabs { display: flex; padding: 16px 24px 0; gap: 8px; }
     .auth-tabs button {
       flex: 1;
@@ -65,13 +61,6 @@
       transition: border-color 0.2s;
     }
     .auth-form input:focus { border-color: #764ba2; }
-
-    #otpCode {
-      text-align: center;
-      letter-spacing: 10px;
-      font-size: 1.6rem;
-      font-weight: 700;
-    }
 
     .primary-btn {
       padding: 12px;
@@ -97,7 +86,7 @@
     }
     .link-btn:hover { text-decoration: underline; }
 
-    .msg { font-size: 0.85rem; min-height: 18px; }
+    .msg { font-size: 0.85rem; min-height: 18px; line-height: 1.4; }
     .msg.error { color: #d33; }
     .msg.ok { color: #2a9d4a; }
 
@@ -192,22 +181,8 @@
         <input type="email" id="email" placeholder="E-posta" autocomplete="email" required />
         <input type="password" id="password" placeholder="Şifre (en az 6 karakter)" autocomplete="current-password" minlength="6" required />
         <button type="submit" id="authSubmit" class="primary-btn">Giriş yap</button>
+        <button type="button" id="resendBtn" class="link-btn" hidden>Doğrulama e-postasını tekrar gönder</button>
         <p class="msg" id="authMsg"></p>
-      </form>
-    </section>
-
-    <!-- ======== OTP DOĞRULAMA ======== -->
-    <section id="otpView" hidden>
-      <header>
-        <h1>✉️ E-posta doğrulama</h1>
-        <p><strong id="otpEmail"></strong> adresine gönderdiğimiz 6 haneli kodu gir</p>
-      </header>
-      <form id="otpForm" class="auth-form">
-        <input type="text" id="otpCode" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="••••••" autocomplete="one-time-code" required />
-        <button type="submit" id="otpSubmit" class="primary-btn">Doğrula ve giriş yap</button>
-        <button type="button" id="resendBtn" class="link-btn">Kodu tekrar gönder</button>
-        <button type="button" id="backBtn" class="link-btn">← Geri dön</button>
-        <p class="msg" id="otpMsg"></p>
       </form>
     </section>
 
@@ -249,9 +224,11 @@
     const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     // =============================
 
-    // ---- Görünüm öğeleri ----
+    // Onay linki bu sayfaya geri döner (Supabase Site URL / allow-list ile eşleşmeli)
+    const REDIRECT_URL = window.location.href.split(/[?#]/)[0];
+
+    // ---- Görünümler ----
     const authView = document.getElementById("authView");
-    const otpView = document.getElementById("otpView");
     const appView = document.getElementById("appView");
 
     // ---- Auth öğeleri ----
@@ -261,25 +238,16 @@
     const emailInput = document.getElementById("email");
     const passwordInput = document.getElementById("password");
     const authSubmit = document.getElementById("authSubmit");
-    const authMsg = document.getElementById("authMsg");
-
-    const otpForm = document.getElementById("otpForm");
-    const otpCode = document.getElementById("otpCode");
-    const otpEmailLabel = document.getElementById("otpEmail");
-    const otpSubmit = document.getElementById("otpSubmit");
     const resendBtn = document.getElementById("resendBtn");
-    const backBtn = document.getElementById("backBtn");
-    const otpMsg = document.getElementById("otpMsg");
+    const authMsg = document.getElementById("authMsg");
 
     const userEmailLabel = document.getElementById("userEmail");
     const logoutBtn = document.getElementById("logoutBtn");
 
-    let mode = "signin";   // "signin" | "signup"
-    let pendingEmail = ""; // OTP beklenen e-posta
+    let mode = "signin"; // "signin" | "signup"
 
     function showView(view) {
       authView.hidden = view !== "auth";
-      otpView.hidden = view !== "otp";
       appView.hidden = view !== "app";
     }
 
@@ -288,13 +256,13 @@
       el.className = "msg" + (kind ? " " + kind : "");
     }
 
-    // ---- Sekme değişimi ----
     function setMode(m) {
       mode = m;
       tabSignin.classList.toggle("active", m === "signin");
       tabSignup.classList.toggle("active", m === "signup");
       authSubmit.textContent = m === "signin" ? "Giriş yap" : "Kaydol";
       passwordInput.autocomplete = m === "signin" ? "current-password" : "new-password";
+      resendBtn.hidden = true;
       setMsg(authMsg, "");
     }
     tabSignin.addEventListener("click", () => setMode("signin"));
@@ -308,64 +276,50 @@
       if (!email || !password) return;
 
       authSubmit.disabled = true;
+      resendBtn.hidden = true;
       setMsg(authMsg, "Lütfen bekle...", "");
 
       if (mode === "signup") {
-        const { error } = await db.auth.signUp({ email, password });
+        const { error } = await db.auth.signUp({
+          email,
+          password,
+          options: { emailRedirectTo: REDIRECT_URL },
+        });
         authSubmit.disabled = false;
         if (error) return setMsg(authMsg, error.message, "error");
-        startOtp(email, "Kaydın oluşturuldu. E-postana gelen 6 haneli kodu gir.");
+        setMsg(
+          authMsg,
+          "Kaydın oluşturuldu ✅ " + email + " adresine bir doğrulama e-postası gönderdik. " +
+            "E-postadaki linke tıkla; ardından buraya dönüp giriş yapabilirsin.",
+          "ok"
+        );
       } else {
         const { error } = await db.auth.signInWithPassword({ email, password });
         authSubmit.disabled = false;
         if (error) {
-          // E-posta henüz doğrulanmadıysa OTP ekranına yönlendir
           if (/confirm|verified|not confirmed/i.test(error.message)) {
-            await db.auth.resend({ type: "signup", email });
-            return startOtp(email, "E-postan doğrulanmamış. Yeni bir kod gönderdik.");
+            setMsg(authMsg, "E-postan henüz doğrulanmamış. Gelen kutundaki linke tıkla ya da yeniden gönder.", "error");
+            resendBtn.hidden = false;
+          } else {
+            setMsg(authMsg, error.message, "error");
           }
-          return setMsg(authMsg, error.message, "error");
+          return;
         }
-        // signInWithPassword başarılı → onAuthStateChange app'i açar
+        // başarılı → onAuthStateChange app'i açar
       }
     });
 
-    // ---- OTP ekranı ----
-    function startOtp(email, info) {
-      pendingEmail = email;
-      otpEmailLabel.textContent = email;
-      otpCode.value = "";
-      setMsg(otpMsg, info || "", info ? "ok" : "");
-      showView("otp");
-      otpCode.focus();
-    }
-
-    otpForm.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const token = otpCode.value.trim();
-      if (token.length < 6) return setMsg(otpMsg, "6 haneli kodu gir.", "error");
-
-      otpSubmit.disabled = true;
-      setMsg(otpMsg, "Doğrulanıyor...", "");
-      const { error } = await db.auth.verifyOtp({
-        email: pendingEmail,
-        token,
-        type: "email", // signup onayı için OTP doğrulaması
-      });
-      otpSubmit.disabled = false;
-      if (error) return setMsg(otpMsg, error.message, "error");
-      // Başarılı → onAuthStateChange app'i açar
-    });
-
+    // ---- Doğrulama e-postasını tekrar gönder ----
     resendBtn.addEventListener("click", async () => {
-      setMsg(otpMsg, "Kod tekrar gönderiliyor...", "");
-      const { error } = await db.auth.resend({ type: "signup", email: pendingEmail });
-      setMsg(otpMsg, error ? error.message : "Yeni kod gönderildi.", error ? "error" : "ok");
-    });
-
-    backBtn.addEventListener("click", () => {
-      showView("auth");
-      setMsg(authMsg, "");
+      const email = emailInput.value.trim();
+      if (!email) return setMsg(authMsg, "Önce e-postanı gir.", "error");
+      setMsg(authMsg, "Gönderiliyor...", "");
+      const { error } = await db.auth.resend({
+        type: "signup",
+        email,
+        options: { emailRedirectTo: REDIRECT_URL },
+      });
+      setMsg(authMsg, error ? error.message : "Doğrulama e-postası tekrar gönderildi.", error ? "error" : "ok");
     });
 
     logoutBtn.addEventListener("click", async () => {
@@ -381,6 +335,7 @@
       } else {
         showView("auth");
         tasks = [];
+        render();
       }
     });
 
@@ -460,11 +415,7 @@
         .insert({ text, done: false })
         .select()
         .single();
-      if (error) {
-        console.error(error);
-        alert("Görev eklenemedi: " + error.message);
-        return;
-      }
+      if (error) { console.error(error); alert("Görev eklenemedi: " + error.message); return; }
       tasks.push(data);
       render();
     }
@@ -504,7 +455,7 @@
       });
     });
 
-    // İlk yüklemede mevcut oturumu kontrol et
+    // İlk yüklemede mevcut oturumu kontrol et (e-posta linkinden dönüş dahil)
     (async () => {
       const { data } = await db.auth.getSession();
       if (!data.session) showView("auth");

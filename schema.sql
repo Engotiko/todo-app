@@ -30,10 +30,12 @@ create policy "own delete" on public.todos
   for delete to authenticated using (auth.uid() = user_id);
 
 -- ============================================================
--- Auth / OTP notları (kod ile değil, Supabase ayarlarından yapılır):
+-- Auth notları (kod ile değil, Supabase ayarlarından yapılır):
 --   * Email confirmations AÇIK olmalı (Authentication > Providers > Email).
---   * 6 haneli kod için "Confirm signup" e-posta şablonu {{ .Token }} içermeli.
---     DİKKAT: Ücretsiz planda varsayılan e-posta sağlayıcısıyla şablon
---     değiştirilemez; özel SMTP (ör. Brevo, Resend, Gmail) gerekir.
---   * OTP uzunluğu: Authentication > Email > "OTP length" = 6.
+--   * Link tabanlı doğrulama için Authentication > URL Configuration:
+--       Site URL        = uygulamanın yayın adresi (ör. GitHub Pages URL'i)
+--       Redirect URLs   = aynı adres (alt yollar için /** ile)
+--   * 6 haneli OTP kodu e-postada göstermek istersen "Confirm signup"
+--     şablonu {{ .Token }} içermeli; bu ücretsiz planda varsayılan e-posta
+--     ile mümkün değil, özel SMTP (Brevo, Resend, Gmail vb.) gerekir.
 -- ============================================================
